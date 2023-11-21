@@ -8,6 +8,8 @@ import math
 import random
 import logging
 import time
+import zipfile
+import shutil
 now = datetime.now()
 
 
@@ -70,7 +72,7 @@ def get_file_info(path, name_info):
   info_out["filedate"] = time.ctime(os.path.getmtime(path))
   return info_out
 
-print(bc.HEADER + "processing the photos now!!!") # yippee!!
+print(bc.HEADER + "processing the photos now!!!" + bc.END) # yippee!!
 
 big_file_list = os.listdir(input_folder)
 
@@ -79,6 +81,26 @@ big_file_list = os.listdir(input_folder)
 
 def process_file(path):
   print("processing file " + path + "...")
+
+
+
+for filename in big_file_list:
+  f_path = os.path.join(input_folder, filename)
+  nameinfo = get_filename_info(filename)
+
+  if (nameinfo["type"].lower() in filetype_groups["archive"]):  # archive file
+    zip = zipfile.ZipFile(f_path)
+    for file in zip.namelist():
+      print(file)
+      if file.startswith('iCloud Photos/'):
+        zip.extract(file, input_folder)
+
+    
+    for filename in os.listdir(os.path.join(input_folder, 'iCloud Photos')):
+      shutil.move(os.path.join(input_folder, 'iCloud Photos', filename), os.path.join(input_folder, filename))
+    os.rmdir(os.path.join(input_folder, 'iCloud Photos'))
+    os.remove(f_path)
+
 
 
 for filename in big_file_list:
@@ -97,11 +119,25 @@ for filename in big_file_list:
   if (nameinfo["type"].lower() in filetype_groups["archive"]):  # archive file
     print(bc.CYAN + "it's an archive file!" + bc.END)
 
+    #zip = zipfile.ZipFile(f_path)
+    
+    #icloud_folder = zip.open()
+    
+
   elif (nameinfo["type"].lower() in filetype_groups["photo"] ): # photo file
     print(bc.CYAN + "it's a photo file!" + bc.END)
-
+    process_file(f_path)
   elif (nameinfo["type"].lower() in filetype_groups["video"] ): # video file
     print(bc.CYAN + "it's a video file!" + bc.END)
-
+    if settings["delete live photos"] == True:
+      # delete if matching file
+      possible_name = nameinfo["name"] + ".JPG"
+      if os.path.exists(os.path.join(input_folder, possible_name)):
+        # it exists!
+        print(bc.WARNING + "photo " + bc.UNDERLINE + possible_name + bc.END + bc.WARNING + " exists! skipping processing the video.")
+      else:
+        process_file(f_path)
+    else:
+      process_file(f_path)
 
 
