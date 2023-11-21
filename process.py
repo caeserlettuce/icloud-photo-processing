@@ -26,7 +26,7 @@ class bc:
 
 filetype_groups = {   # capitals dont matter, it compares them all in lowercase
   "archive": ["zip"],
-  "photo": ["png", "jpg", "jpeg", "heic"],
+  "photo": ["png", "jpg", "jpeg", "heic", "gif"], #i know gif is a video file but it should be treated like a photo for reasons lmao
   "video": ["mp4", "mov", "avi"]
 }
 
@@ -37,6 +37,14 @@ def exit_handler():
 
 settings = json.load(open('settings.json'.encode()))
 
+def folder_check(folder):
+  exists = os.path.exists(folder)
+  if (exists != True):
+    print(bc.GREEN + bc.UNDERLINE + folder + bc.END + bc.BLUE + " does not exist! making folder..." + bc.END)
+    os.mkdir(folder)
+
+folder_check("in")
+folder_check("out")
 
 atexit.register(exit_handler)
 
@@ -51,19 +59,26 @@ def get_filename_info(filename):
 
 def get_file_info(path, name_info):
   info_out = {}
-  if (name_info["type"].lower() in filetype_groups["photo"] or name_info["type"].lower() in filetype_groups["video"]):
-
+  if (name_info["type"].lower() in filetype_groups["photo"]):
     exif = Image.open(path)._getexif()
-    if not exif:
-      info_out["metadate"] = False
-    else:
+    if exif and 36867 in exif:
       info_out["metadate"] = exif[36867]
+    else:
+      info_out["metadate"] = False
+  else:
+    info_out["metadate"] = False
   info_out["filedate"] = time.ctime(os.path.getmtime(path))
   return info_out
 
 print(bc.HEADER + "processing the photos now!!!") # yippee!!
 
 big_file_list = os.listdir(input_folder)
+
+
+
+
+def process_file(path):
+  print("processing file " + path + "...")
 
 
 for filename in big_file_list:
