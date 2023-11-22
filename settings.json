@@ -1,4 +1,6 @@
 {
   "sort by month/year": true,
-  "delete live photos": true
+  "delete live photos": true,
+  "use modified date as backup": false,
+  "output to iphone folders": true
 }
