@@ -109,11 +109,30 @@ def get_file_info(path, name_info):
     info_out["filedate"] = False
   return info_out
 
+def get_size(start_path = '.'):
+  total_size = 0
+  for dirpath, dirnames, filenames in os.walk(start_path):
+    for f in filenames:
+      fp = os.path.join(dirpath, f)
+      # skip if it is symbolic link
+      if not os.path.islink(fp):
+        total_size += os.path.getsize(fp)
+  return total_size
+
+def convert_size(size_bytes):
+  if size_bytes == 0:
+    return "0B"
+  size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+  i = int(math.floor(math.log(size_bytes, 1024)))
+  p = math.pow(1024, i)
+  s = round(size_bytes / p, 2)
+  return "%s %s" % (s, size_name[i])
+
 print(bc.HEADER + "processing the photos now!!!" + bc.END) # yippee!!
 
 big_file_list = os.listdir(input_folder)
 
-
+start_files_size = get_size(input_folder)
 
 
 def process_file(filename):
@@ -248,3 +267,16 @@ for filename in big_file_list:
 
 for file in file_process_list:  # if i make it process in the function above, the live video deletey thing doesnt work cause itll move the photos before the videos
   process_file(file)
+
+
+
+end_files_size = get_size(output_folder)
+
+if (start_files_size == end_files_size):
+  print( bc.BOLD + bc.HEADER +"\ndone! :)" + bc.END)
+  print( bc.BOLD + bc.BLUE + "\n total size: " + bc.END + bc.GREEN + str(convert_size(end_files_size)) + bc.END)
+else:
+  print( bc.BOLD + bc.HEADER + "\ndone! :)" + bc.END)
+  print( bc.BOLD + bc.BLUE + "\n start size: " + bc.END + bc.GREEN + str(convert_size(start_files_size)) + bc.END)
+  print( bc.BOLD + bc.BLUE + "   end size: " + bc.END + bc.GREEN + str(convert_size(end_files_size)) + bc.END)
+  print( bc.BOLD + bc.BLUE + "space saved: " + bc.END + bc.GREEN + str(convert_size(start_files_size - end_files_size)) + bc.END)
