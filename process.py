@@ -29,8 +29,8 @@ class bc:
 
 filetype_groups = {   # capitals dont matter, it compares them all in lowercase
   "archive": ["zip"],
-  "photo": ["png", "jpg", "jpeg", "heic", "gif"], #i know gif is a video file but it should be treated like a photo for reasons lmao
-  "video": ["mp4", "mov", "avi"]
+  "photo": ["png", "jpg", "jpeg", "heic"], #i know gif is a video file but it should be treated like a photo for reasons lmao
+  "video": ["mp4", "mov", "avi", "gif"]
 }
 
 input_folder = "in"
@@ -172,7 +172,7 @@ def process_file(filename):
     print(bc.BLUE + "month: " + bc.GREEN + bc.UNDERLINE + str(month) + bc.END)
     print(bc.BLUE + "year: " + bc.GREEN + bc.UNDERLINE + str(year) + bc.END)
 
-    if type(year) != type(1):
+    if type(year) != type(1) or str(info) == "{}":
       # no year!!
       year = "unknown"
     if month in month_folder_names:
