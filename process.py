@@ -51,6 +51,11 @@ month_folder_names = {
   12: "12 december"
 }
 
+data_out = {
+  "notes": {},
+  "info": {}
+}
+
 def exit_handler():
   print(bc.GREEN + "t'as been closed" + bc.END)
 
@@ -134,6 +139,71 @@ big_file_list = os.listdir(input_folder)
 
 start_files_size = get_size(input_folder)
 
+paths_of_moving = {}
+missed_icloud_data = []
+
+
+if (settings["use icloud data"] == True):
+  # use icloud data
+  icloud_data = json.load(open('icloud_data.json'.encode()))
+  icloud_data = icloud_data["files"]
+
+  for file in icloud_data:
+    #print("doing " + str(file))
+    file_found = False
+
+    if file["extension"] in filetype_groups["photo"]:
+      for ex in filetype_groups["photo"]:
+        file_test = file["name"] + "." + ex
+        # print(file_test)
+        if (os.path.isfile(os.path.join("./in", file_test))):
+          file_found = file_test
+        file_test = file["name"] + "." + ex.upper()
+        # print(file_test)
+        if (os.path.isfile(os.path.join("./in", file_test))):
+          file_found = file_test
+
+    elif file["extension"] in filetype_groups["video"]:
+      for ex in filetype_groups["video"]:
+        file_test = file["name"] + "." + ex
+        # print(file_test)
+        if (os.path.isfile(os.path.join("./in", file_test))):
+          file_found = file_test
+        file_test = file["name"] + "." + ex.upper()
+        # print(file_test)
+        if (os.path.isfile(os.path.join("./in", file_test))):
+          file_found = file_test
+    
+
+
+    if (file_found == False):
+      missed_icloud_data.append(file)
+    else:
+      # heres where things get GOOD
+      data_out["notes"][file_found] = file["note"]
+      data_out["info"][file_found] = {}
+      # data_out["info"][file_found][""] = file[""]
+
+      # LOCATION
+      if (file["latitude"] == 0 and file["longitude"] == 0):
+        data_out["info"][file_found]["location"] = False
+      else:
+        data_out["info"][file_found]["location"] = [float(file["latitude"]), float(file["longitude"])]
+      
+      data_out["info"][file_found]["screen recording"] = file["screen recording"]
+      data_out["info"][file_found]["favourite"] = file["favourite"]
+      data_out["info"][file_found]["media type"] = file["media type"]
+
+      # DATETIME
+      datetimetmtm = datetime.strptime(file["date"], "%b %d, %Y at %H:%M")
+      data_out["info"][file_found]["date"] = datetimetmtm.strftime("%Y:%m:%d %H:%M:%S")
+      
+      data_out["info"][file_found]["screenshot"] = file["screenshot"]
+
+
+
+
+
 
 def process_file(filename):
   print("processing file " + filename + "...")
@@ -193,17 +263,22 @@ def process_file(filename):
     print(bc.GREEN + "saving file " + bc.BLUE + bc.UNDERLINE + filename + bc.END + bc.GREEN + "!" + bc.END)
     if (month == False):
       if settings["output to iphone folders"] == True:
+        paths_of_moving[filename] = os.path.join(output_folder, str(year), "iphone", filename)
         shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, str(year), "iphone", filename))
       else:
+        paths_of_moving[filename] = os.path.join(output_folder, str(year), filename)
         shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, str(year), filename))
     else:
       if settings["output to iphone folders"] == True:
+        paths_of_moving[filename] = os.path.join(output_folder, str(year), str(month), "iphone", filename)
         shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, str(year), str(month), "iphone", filename))
       else:
+        paths_of_moving[filename] = os.path.join(output_folder, str(year), str(month), filename)
         shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, str(year), str(month), filename))
   else:
     # dont sort
     print(bc.GREEN + "saving file " + bc.BLUE + bc.UNDERLINE + filename + bc.END + bc.GREEN + "!" + bc.END)
+    paths_of_moving[filename] = os.path.join(output_folder, filename)
     shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, filename))
 
 
@@ -280,3 +355,23 @@ else:
   print( bc.BOLD + bc.BLUE + "\n start size: " + bc.END + bc.GREEN + str(convert_size(start_files_size)) + bc.END)
   print( bc.BOLD + bc.BLUE + "   end size: " + bc.END + bc.GREEN + str(convert_size(end_files_size)) + bc.END)
   print( bc.BOLD + bc.BLUE + "space saved: " + bc.END + bc.GREEN + str(convert_size(start_files_size - end_files_size)) + bc.END)
+
+
+if (settings["use icloud data"] == True):
+  print(bc.FAIL + "\nMISSED FILES FROM ICLOUD DATA: \n" + str(json.dumps(missed_icloud_data, indent=2)) + "\n" + bc.END)
+
+  new_data_out = {
+    "notes": {},
+    "info": {}
+  }
+
+  for file in data_out["notes"]:
+    new_filename = "sorted by time/" + paths_of_moving[file].replace("out/", "")
+    new_data_out["notes"][new_filename] = data_out["notes"][file]
+  for file in data_out["info"]:
+    new_filename = "sorted by time/" + paths_of_moving[file].replace("out/", "")
+    new_data_out["info"][new_filename] = data_out["info"][file]
+
+  data_file_save = open("out/icloud_data_out.json", "w")
+  data_file_save.write(json.dumps(new_data_out))
+  data_file_save.close()
