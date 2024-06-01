@@ -4,6 +4,8 @@ import json
 import atexit
 from PIL import Image, ExifTags
 from PIL.ExifTags import TAGS, GPSTAGS
+from exif import Image as ExifImage
+from geopy.geocoders import GoogleV3
 import math
 import random
 import logging
@@ -52,6 +54,7 @@ month_folder_names = {
 }
 
 data_out = {
+  "albums": {},
   "notes": {},
   "info": {}
 }
@@ -60,6 +63,7 @@ def exit_handler():
   print(bc.GREEN + "t'as been closed" + bc.END)
 
 settings = json.load(open('settings.json'.encode()))
+api_keys = json.load(open('api_keys.json'.encode())) # this file is in the .gitignore because it has sensitive information !!!11!!!!!11111!1!!
 
 def folder_check(folder):
   exists = os.path.exists(folder)
@@ -71,6 +75,15 @@ folder_check("in")
 folder_check("out")
 
 atexit.register(exit_handler)
+
+geolocator = GoogleV3(api_key=api_keys["google"])
+
+def duplicate_prevention():
+  dpv_json = json.load(open('funny.json'.encode()))
+  dpv_json["duplicate prevention"] = dpv_json["duplicate prevention"] + 1
+  dpv_save = open("funny.json", "w")
+  dpv_save.write(json.dumps(dpv_json))
+  return dpv_json["duplicate prevention"]
 
 def get_filename_info(filename):
   info_out = {}
@@ -87,6 +100,10 @@ def get_file_info(path, name_info):
     exif = Image.open(path)._getexif()
     if exif and 36867 in exif:
       info_out["metadate"] = exif[36867]
+      print("METADATE!!", exif[36867])
+    elif exif and 306 in exif:
+      info_out["metadate"] = exif[306]
+      print("METADATE!!", exif[306])
     else:
       info_out["metadate"] = False
   elif (name_info["type"].lower() in filetype_groups["video"]):
@@ -133,6 +150,26 @@ def convert_size(size_bytes):
   s = round(size_bytes / p, 2)
   return "%s %s" % (s, size_name[i])
 
+def convert_size_rough(size_bytes):
+  if size_bytes == 0:
+    return "0B"
+  size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+  i = int(math.floor(math.log(size_bytes, 1000)))
+  p = math.pow(1000, i)
+  s = round(size_bytes / p, 2)
+  if size_name[i] == "KB":
+    s = round(s, 0)
+  elif size_name[i] == "MB":
+    s = round(s, 1)
+  elif size_name[i] == "GB":
+    s = round(s, 2)
+
+  if int(s) == float(s):
+    s = int(s)
+  
+  return "%s %s" % (s, size_name[i])
+
+
 print(bc.HEADER + "processing the photos now!!!" + bc.END) # yippee!!
 
 big_file_list = os.listdir(input_folder)
@@ -143,62 +180,6 @@ paths_of_moving = {}
 missed_icloud_data = []
 
 
-if (settings["use icloud data"] == True):
-  # use icloud data
-  icloud_data = json.load(open('icloud_data.json'.encode()))
-  icloud_data = icloud_data["files"]
-
-  for file in icloud_data:
-    #print("doing " + str(file))
-    file_found = False
-
-    if file["extension"] in filetype_groups["photo"]:
-      for ex in filetype_groups["photo"]:
-        file_test = file["name"] + "." + ex
-        # print(file_test)
-        if (os.path.isfile(os.path.join("./in", file_test))):
-          file_found = file_test
-        file_test = file["name"] + "." + ex.upper()
-        # print(file_test)
-        if (os.path.isfile(os.path.join("./in", file_test))):
-          file_found = file_test
-
-    elif file["extension"] in filetype_groups["video"]:
-      for ex in filetype_groups["video"]:
-        file_test = file["name"] + "." + ex
-        # print(file_test)
-        if (os.path.isfile(os.path.join("./in", file_test))):
-          file_found = file_test
-        file_test = file["name"] + "." + ex.upper()
-        # print(file_test)
-        if (os.path.isfile(os.path.join("./in", file_test))):
-          file_found = file_test
-    
-
-
-    if (file_found == False):
-      missed_icloud_data.append(file)
-    else:
-      # heres where things get GOOD
-      data_out["notes"][file_found] = file["note"]
-      data_out["info"][file_found] = {}
-      # data_out["info"][file_found][""] = file[""]
-
-      # LOCATION
-      if (file["latitude"] == 0 and file["longitude"] == 0):
-        data_out["info"][file_found]["location"] = False
-      else:
-        data_out["info"][file_found]["location"] = [float(file["latitude"]), float(file["longitude"])]
-      
-      data_out["info"][file_found]["screen recording"] = file["screen recording"]
-      data_out["info"][file_found]["favourite"] = file["favourite"]
-      data_out["info"][file_found]["media type"] = file["media type"]
-
-      # DATETIME
-      datetimetmtm = datetime.strptime(file["date"], "%b %d, %Y at %H:%M")
-      data_out["info"][file_found]["date"] = datetimetmtm.strftime("%Y:%m:%d %H:%M:%S")
-      
-      data_out["info"][file_found]["screenshot"] = file["screenshot"]
 
 
 
@@ -281,24 +262,162 @@ def process_file(filename):
     paths_of_moving[filename] = os.path.join(output_folder, filename)
     shutil.move(os.path.join(input_folder, filename), os.path.join(output_folder, filename))
 
-
-
 for filename in big_file_list:
   f_path = os.path.join(input_folder, filename)
   nameinfo = get_filename_info(filename)
 
   if (nameinfo["type"].lower() in filetype_groups["archive"]):  # archive file
     zip = zipfile.ZipFile(f_path)
+    # print("path ??", f_path)
     for file in zip.namelist():
-      print(file)
+      # print("file ??", file)
       if file.startswith('iCloud Photos/'):
         zip.extract(file, input_folder)
 
-    
+    # print("FESLJBNGKKJDSRHGFVHBDRLSK:UGBHdRFL:KUJFgBHSDEKFGJbBKHJIVLGRESD", os.listdir(input_folder))
     for filename in os.listdir(os.path.join(input_folder, 'iCloud Photos')):
-      shutil.move(os.path.join(input_folder, 'iCloud Photos', filename), os.path.join(input_folder, filename))
+      if os.path.isfile(os.path.join(input_folder, filename)):
+        print("DUPLICATE PREVENTION!", filename)
+        dpv = duplicate_prevention()
+        os.mkdir(os.path.join(input_folder, "dpv_" + str(dpv)))
+        shutil.move(os.path.join(input_folder, 'iCloud Photos', filename), os.path.join(input_folder, "dpv_" + str(dpv), filename))
+      else:
+        shutil.move(os.path.join(input_folder, 'iCloud Photos', filename), os.path.join(input_folder, filename))
     os.rmdir(os.path.join(input_folder, 'iCloud Photos'))
     os.remove(f_path)
+
+
+dpvd = {}
+
+for dirpath, dirnames, filenames in os.walk(input_folder):
+    for f in filenames:
+      fp = os.path.join(dirpath, f)
+      # skip if it is symbolic link
+      #print("fp??", fp)
+
+      if "in/dpv_" in fp:
+        # is a dpv
+        path = fp.split("/")
+        del path[-1]
+        dpv = fp.split("/")
+        del dpv[-1]
+        dpv = "/".join(dpv)
+        dpv = dpv.split("_")[1]
+        fname = fp.split("/")[-1]
+        fex = fname.split(".")[-1]
+        fname_name = fname.split(".")
+        del fname_name[-1]
+        fname_name = ".".join(fname_name)
+        new_fname = fname_name + "_" + dpv + "." + fex
+        #print(fname, fex, fname_name, dpv, new_fname)
+        os.rename(fp, os.path.join("in", new_fname))
+        os.rmdir("in/dpv_" + dpv)
+
+        dpvd[new_fname] = fname
+
+print(dpvd)
+
+files_checking = os.listdir("in")
+print("files checking:", files_checking)
+
+if (settings["use icloud data"] == True):
+  # use icloud data
+  icloud_data = json.load(open('icloud_data.json'.encode()))
+  icloud_data = icloud_data["files"]
+
+  for file in icloud_data:
+    #print("doing " + str(file))
+    file_found = False
+
+    for fcheck in files_checking:
+      if file["name"] in fcheck:
+        # print("filename match!", file["name"], ":", fcheck)
+        fcheck_size = convert_size_rough(os.path.getsize(os.path.join("in", fcheck)))
+        # print("size comparison:", file["size"], fcheck_size)
+        if file["size"] == fcheck_size:
+          print("size & name match!", file["name"], ":", fcheck)
+          file_found = fcheck
+
+    if (file_found == False):
+      missed_icloud_data.append(file)
+    else:
+      # heres where things get GOOD
+      if "note" in file:
+        data_out["notes"][file_found] = file["note"]
+      
+      if type(file["album"]) == type("hee hee"):
+        # string
+        file["album"] = [file["album"]]
+      
+      albums_list_new = []
+      for album in file["album"]:
+        if "banished to computer" not in album:
+          albums_list_new.append(album)
+
+      file["album"] = albums_list_new
+
+      data_out["info"][file_found] = {}
+      # data_out["info"][file_found][""] = file[""]
+
+      # # LOCATION
+      # if (file["latitude"] == 0 and file["longitude"] == 0):
+      #   data_out["info"][file_found]["location"] = False
+      # else:
+      #   data_out["info"][file_found]["location"] = [float(file["latitude"]), float(file["longitude"])]
+
+
+      data_out["info"][file_found]["albums"] = file["album"]
+
+      if file["location"] != 0:
+        data_out["info"][file_found]["latlng"] = [file["location"]["lat"], file["location"]["lng"]]
+        locations = geolocator.reverse(file["location"]["lat"] + ", " + file["location"]["lng"])
+        if (type(locations) == type(["hi"])):
+          data_out["info"][file_found]["address"] = str(locations[0])
+        else:
+          data_out["info"][file_found]["address"] = str(locations)
+
+        # print(locations)
+
+        # data_out["info"][file_found]["address"] = file["location"]["address"] + "\n" + file["location"]["zip code"]
+
+      data_out["info"][file_found]["screen recording"] = file["screen recording"]
+      data_out["info"][file_found]["favourite"] = file["favourite"]
+      data_out["info"][file_found]["media type"] = file["media type"]
+      if "image text" in file:
+        data_out["info"][file_found]["image text"] = file["image text"]
+
+      # DATETIME
+      datetimetmtm = datetime.strptime(file["date"], "%b %d, %Y at %H:%M")
+      data_out["info"][file_found]["date"] = datetimetmtm.strftime("%Y:%m:%d %H:%M:%S")
+
+      img = Image.open(os.path.join("in", file_found))
+      img_exif = img.getexif()
+      if 36867 not in img_exif:
+        img_exif[36867] = data_out["info"][file_found]["date"] # set date YAYAYYAY
+      if 306 not in img_exif:
+        img_exif[306] = data_out["info"][file_found]["date"] # set date YAYAYYAY
+
+      img.save(os.path.join("in", file_found), exif=img_exif)
+
+      # image_path = os.path.join("in", file_found)
+      # with open(image_path, "rb") as input_file:
+      #   exif_img = ExifImage(input_file)
+      
+      #   exif_img.datetime = str(data_out["info"][file_found]["date"])
+      #   # exif_img.artist = "Matthew Gove"
+      #   # exif_img.copyright = "Copyright 2022 Matthew Gove. All Rights Reserved."
+
+      #   with open(image_path, "wb") as ofile:
+      #     ofile.write(exif_img.get_file())
+
+      # # 0x9003
+      # im = Image.open(image_path)
+      # exif = im.getexif()
+      # exif[0x9003] = str(data_out["info"][file_found]["date"])
+      # im.save(image_path, exif=exif)
+
+      # data_out["info"][file_found]["screenshot"] = file["screenshot"]
+
 
 big_file_list = os.listdir(input_folder)
 
@@ -340,6 +459,9 @@ for filename in big_file_list:
     else:
       file_process_list.append(filename)
 
+
+
+
 for file in file_process_list:  # if i make it process in the function above, the live video deletey thing doesnt work cause itll move the photos before the videos
   process_file(file)
 
@@ -354,7 +476,10 @@ else:
   print( bc.BOLD + bc.HEADER + "\ndone! :)" + bc.END)
   print( bc.BOLD + bc.BLUE + "\n start size: " + bc.END + bc.GREEN + str(convert_size(start_files_size)) + bc.END)
   print( bc.BOLD + bc.BLUE + "   end size: " + bc.END + bc.GREEN + str(convert_size(end_files_size)) + bc.END)
-  print( bc.BOLD + bc.BLUE + "space saved: " + bc.END + bc.GREEN + str(convert_size(start_files_size - end_files_size)) + bc.END)
+  if str(convert_size(start_files_size)) == str(convert_size(end_files_size)):
+    print( bc.BOLD + bc.BLUE + "space saved: " + bc.END + bc.GREEN + "0 MB !" + bc.END)
+  else:
+    print( bc.BOLD + bc.BLUE + "space saved: " + bc.END + bc.GREEN + str(convert_size(start_files_size - end_files_size)) + bc.END)
 
 
 if (settings["use icloud data"] == True):
@@ -364,7 +489,6 @@ if (settings["use icloud data"] == True):
     "notes": {},
     "info": {}
   }
-
   for file in data_out["notes"]:
     new_filename = "sorted by time/" + paths_of_moving[file].replace("out/", "")
     new_data_out["notes"][new_filename] = data_out["notes"][file]
